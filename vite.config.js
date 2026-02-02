@@ -25,7 +25,7 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
-    minify: 'terser',
+    minify: 'esbuild', // 使用 esbuild 替代 terser，避免依赖问题
     // 确保资源路径正确
     rollupOptions: {
       output: {
