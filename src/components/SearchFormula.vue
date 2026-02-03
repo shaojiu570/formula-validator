@@ -240,6 +240,17 @@ const generateFormulas = async () => {
       code: '码类'
     }
     
+    // 后缀映射
+    const suffixMap = {
+      tail: '尾',
+      head: '头',
+      sum: '合',
+      wave: '波',
+      element: '行',
+      zodiac: '肖位',
+      code: '号'
+    }
+    
     // 生成所有可能的组合：2元素、3元素、...、N元素
     for (let size = 2; size <= selectedElements.value.length; size++) {
       const combinations = getCombinations(selectedElements.value, size)
@@ -247,31 +258,27 @@ const generateFormulas = async () => {
       combinations.forEach(combo => {
         selectedTypes.value.forEach(type => {
           ['D', 'L'].forEach(rule => {
-            // 根据不同类型生成不同的表达式
-            let expression = ''
+            // 根据不同类型生成表达式
+            const suffix = suffixMap[type]
             
-            if (type === 'tail') {
-              // 尾数类：元素+尾
-              expression = combo.map(el => `${el}尾`).join('+')
-            } else if (type === 'head') {
-              // 头数类：元素+头
-              expression = combo.map(el => `${el}头`).join('+')
-            } else if (type === 'sum') {
-              // 合数类：元素+合
-              expression = combo.map(el => `${el}合`).join('+')
-            } else if (type === 'wave') {
-              // 波色类：元素+波
-              expression = combo.map(el => `${el}波`).join('+')
-            } else if (type === 'element') {
-              // 五行类：元素+行
-              expression = combo.map(el => `${el}行`).join('+')
-            } else if (type === 'zodiac') {
-              // 肖位类：元素+肖位
-              expression = combo.map(el => `${el}肖位`).join('+')
-            } else if (type === 'code') {
-              // 码类：元素+号
-              expression = combo.map(el => `${el}号`).join('+')
-            }
+            // 为每个元素添加对应的后缀（如果元素本身不包含该后缀）
+            const expression = combo.map(el => {
+              // 检查元素是否已经包含后缀
+              if (el.endsWith(suffix)) {
+                return el // 已经有后缀，直接使用
+              } else if (el.endsWith('号') || el.endsWith('头') || el.endsWith('尾') || 
+                         el.endsWith('合') || el.endsWith('波') || el.endsWith('行') || 
+                         el.endsWith('肖位') || el.endsWith('段') || el.endsWith('合头') || 
+                         el.endsWith('合尾')) {
+                // 元素已经有其他后缀，需要替换为当前类型的后缀
+                // 移除现有后缀，添加新后缀
+                const base = el.replace(/(号|头|尾|合头|合尾|合|波|行|肖位|段)$/, '')
+                return base + suffix
+              } else {
+                // 基础元素（如"期数"、"总分"），直接添加后缀
+                return el + suffix
+              }
+            }).join('+')
             
             let formula = `[${rule}${typeMap[type]}]${expression}=${params.periods}`
             
