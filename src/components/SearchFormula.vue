@@ -229,6 +229,17 @@ const generateFormulas = async () => {
   try {
     const formulas = []
     
+    // 类型映射
+    const typeMap = {
+      tail: '尾数类',
+      head: '头数类', 
+      sum: '合数类',
+      wave: '波色类',
+      element: '五行类',
+      zodiac: '肖位类',
+      code: '码类'
+    }
+    
     // 生成所有可能的组合：2元素、3元素、...、N元素
     for (let size = 2; size <= selectedElements.value.length; size++) {
       const combinations = getCombinations(selectedElements.value, size)
@@ -236,15 +247,30 @@ const generateFormulas = async () => {
       combinations.forEach(combo => {
         selectedTypes.value.forEach(type => {
           ['D', 'L'].forEach(rule => {
-            const expression = combo.join('+')
-            const typeMap = {
-              tail: '尾数类',
-              head: '头数类', 
-              sum: '合数类',
-              wave: '波色类',
-              element: '五行类',
-              zodiac: '肖位类',
-              code: '码类'
+            // 根据不同类型生成不同的表达式
+            let expression = ''
+            
+            if (type === 'tail') {
+              // 尾数类：元素+尾
+              expression = combo.map(el => `${el}尾`).join('+')
+            } else if (type === 'head') {
+              // 头数类：元素+头
+              expression = combo.map(el => `${el}头`).join('+')
+            } else if (type === 'sum') {
+              // 合数类：元素+合
+              expression = combo.map(el => `${el}合`).join('+')
+            } else if (type === 'wave') {
+              // 波色类：元素+波
+              expression = combo.map(el => `${el}波`).join('+')
+            } else if (type === 'element') {
+              // 五行类：元素+行
+              expression = combo.map(el => `${el}行`).join('+')
+            } else if (type === 'zodiac') {
+              // 肖位类：元素+肖位
+              expression = combo.map(el => `${el}肖位`).join('+')
+            } else if (type === 'code') {
+              // 码类：元素+号
+              expression = combo.map(el => `${el}号`).join('+')
             }
             
             let formula = `[${rule}${typeMap[type]}]${expression}=${params.periods}`
@@ -269,8 +295,11 @@ const generateFormulas = async () => {
       }
     }
     
+    // 去重
+    const uniqueFormulas = [...new Set(formulas)]
+    
     // 限制最终数量
-    const limitedFormulas = formulas.slice(0, 800)
+    const limitedFormulas = uniqueFormulas.slice(0, 800)
     
     ElMessage.success(`生成了 ${limitedFormulas.length} 个公式组合`)
     emit('add-formulas', limitedFormulas)

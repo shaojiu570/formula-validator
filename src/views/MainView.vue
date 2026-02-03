@@ -174,12 +174,33 @@ const clearResults = () => {
 }
 
 const addFormulas = (formulas) => {
-  if (formulaInput.value) {
-    formulaInput.value += '\n' + formulas.join('\n')
-  } else {
-    formulaInput.value = formulas.join('\n')
+  // 获取现有公式
+  const existingFormulas = formulaInput.value 
+    ? formulaInput.value.split('\n').filter(line => line.trim())
+    : []
+  
+  // 去重：只添加不存在的公式
+  const newFormulas = formulas.filter(formula => 
+    !existingFormulas.includes(formula.trim())
+  )
+  
+  if (newFormulas.length === 0) {
+    ElMessage.warning('所有公式已存在，未添加新公式')
+    return
   }
-  ElMessage.success(`已添加 ${formulas.length} 个公式`)
+  
+  if (formulaInput.value) {
+    formulaInput.value += '\n' + newFormulas.join('\n')
+  } else {
+    formulaInput.value = newFormulas.join('\n')
+  }
+  
+  const duplicateCount = formulas.length - newFormulas.length
+  if (duplicateCount > 0) {
+    ElMessage.success(`已添加 ${newFormulas.length} 个新公式，过滤 ${duplicateCount} 个重复公式`)
+  } else {
+    ElMessage.success(`已添加 ${newFormulas.length} 个公式`)
+  }
 }
 
 const applySettings = (settings) => {
