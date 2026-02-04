@@ -11,22 +11,6 @@
       <!-- 公式库选项卡 -->
       <el-tab-pane label="公式库" name="library">
         <div class="library-content">
-          <!-- 系统分类 -->
-          <div class="category-section">
-            <h3>📁 系统分类（7种）</h3>
-            <div class="category-grid">
-              <div 
-                v-for="category in categories" 
-                :key="category.id"
-                class="category-card"
-                @click="selectCategory(category)"
-              >
-                <div class="category-icon">{{ category.name }}</div>
-                <div class="category-count">{{ getCategoryCount(category.id) }}个</div>
-              </div>
-            </div>
-          </div>
-          
           <!-- 自定义编组 -->
           <div class="group-section">
             <div class="section-header">

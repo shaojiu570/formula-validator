@@ -2,7 +2,7 @@
   <div class="search-formula">
     <!-- 参数设置 -->
     <div class="params-section">
-      <h4>参数设置（独立于主界面设置）</h4>
+      <h4>⚙️ 参数设置（独立于主界面设置）</h4>
       <div class="params-row">
         <div class="param-item">
           <label>补偿值:</label>
@@ -39,101 +39,107 @@
       </div>
     </div>
 
-    <!-- 随机选择元素 -->
-    <div class="random-section">
-      <h4>🎲 随机选择元素</h4>
-      <div class="random-controls">
-        <span>随机</span>
-        <el-button size="small" @click="decreaseCount">-</el-button>
-        <span class="count">{{ randomCount }}</span>
-        <el-button size="small" @click="increaseCount">+</el-button>
-        <span>个</span>
-        <el-button type="primary" size="small" @click="randomSelect">🎯随机</el-button>
-        <el-button size="small" @click="clearSelected">清空</el-button>
-        <el-button type="success" size="small" @click="generateFormulas" :loading="isGenerating">验证</el-button>
-      </div>
-      <div class="random-note">
-        (支持2-78个，生成所有可能组合)
-      </div>
-    </div>
-
-    <!-- 元素选择区域 -->
-    <div class="elements-section">
-      <div class="element-group">
-        <h5>📅 期数系列(4个)</h5>
-        <div class="element-tags">
-          <el-tag
-            v-for="element in elements.period"
-            :key="element"
-            :type="selectedElements.includes(element) ? 'success' : ''"
-            @click="toggleElement(element)"
-            class="element-tag"
-          >
-            {{ element }}
-          </el-tag>
+    <!-- 智能搜索设置 -->
+    <div class="intelligent-section">
+      <h4>🎯 智能搜索设置</h4>
+      
+      <div class="intelligent-params">
+        <div class="param-item">
+          <label>目标命中率:</label>
+          <el-slider 
+            v-model="intelligentParams.targetHitRate" 
+            :min="60" 
+            :max="100" 
+            :step="5"
+            show-stops
+          />
+          <span class="value-display">{{ intelligentParams.targetHitRate }}%</span>
+        </div>
+        
+        <div class="param-item">
+          <label>最大结果数:</label>
+          <el-input-number 
+            v-model="intelligentParams.maxResults" 
+            :min="10" 
+            :max="500" 
+            :step="10"
+            size="small" 
+          />
+        </div>
+        
+        <div class="param-item">
+          <label>搜索策略:</label>
+          <el-radio-group v-model="intelligentParams.searchMode" size="small">
+            <el-radio label="fast">⚡快速模式（10-30秒）</el-radio>
+            <el-radio label="standard">🎯标准模式（30-60秒）</el-radio>
+            <el-radio label="deep">🔍深度模式（1-3分钟）</el-radio>
+          </el-radio-group>
         </div>
       </div>
-
-      <div class="element-group">
-        <h5>📊 总分系列(4个)</h5>
-        <div class="element-tags">
-          <el-tag
-            v-for="element in elements.total"
-            :key="element"
-            :type="selectedElements.includes(element) ? 'success' : ''"
-            @click="toggleElement(element)"
-            class="element-tag"
-          >
-            {{ element }}
-          </el-tag>
-        </div>
-      </div>
-
-      <div class="element-group">
-        <h5>🔢 平码系列(60个)</h5>
-        <div class="element-tags">
-          <el-tag
-            v-for="element in elements.ping"
-            :key="element"
-            :type="selectedElements.includes(element) ? 'success' : ''"
-            @click="toggleElement(element)"
-            class="element-tag"
-          >
-            {{ element }}
-          </el-tag>
-        </div>
-      </div>
-
-      <div class="element-group">
-        <h5>⭐ 特码系列(10个)</h5>
-        <div class="element-tags">
-          <el-tag
-            v-for="element in elements.special"
-            :key="element"
-            :type="selectedElements.includes(element) ? 'success' : ''"
-            @click="toggleElement(element)"
-            class="element-tag"
-          >
-            {{ element }}
-          </el-tag>
-        </div>
-      </div>
-    </div>
-
-    <!-- 已选择元素 -->
-    <div class="selected-section">
-      <h4>已选择元素 ({{ selectedElements.length }})</h4>
-      <div class="selected-elements">
-        <el-tag
-          v-for="element in selectedElements"
-          :key="element"
-          type="success"
-          closable
-          @close="removeElement(element)"
-          class="selected-tag"
+      
+      <div class="search-actions">
+        <el-button 
+          type="primary" 
+          size="large"
+          @click="startIntelligentSearch" 
+          :loading="isSearching"
+          :disabled="selectedTypes.length === 0"
         >
-          {{ element }}
-        </el-tag>
+          🚀 开始智能搜索
+        </el-button>
+        <el-button 
+          v-if="isSearching"
+          size="large"
+          @click="stopSearch"
+        >
+          ⏸️ 停止搜索
+        </el-button>
+      </div>
+      
+      <!-- 搜索进度 -->
+      <div v-if="isSearching" class="search-progress">
+        <el-progress :percentage="searchProgress.percentage" :status="searchProgress.status" />
+        <div class="progress-info">
+          <span>已搜索: {{ searchProgress.searched }}/{{ searchProgress.total }}</span>
+          <span>已找到: {{ searchProgress.found }} 个高命中公式</span>
+          <span v-if="searchProgress.bestHitRate > 0">当前最高: {{ searchProgress.bestHitRate }}%</span>
+        </div>
+      </div>
+      
+      <!-- 搜索结果 -->
+      <div v-if="searchResults.length > 0" class="search-results">
+        <h4>🎯 搜索结果（找到 {{ searchResults.length }} 个高命中公式）</h4>
+        <div class="results-actions">
+          <el-button size="small" @click="selectAllResults">全选</el-button>
+          <el-button size="small" @click="clearSelection">清空选择</el-button>
+          <el-button 
+            type="primary" 
+            size="small" 
+            @click="addSelectedResults"
+            :disabled="selectedResults.length === 0"
+          >
+            添加选中 ({{ selectedResults.length }})
+          </el-button>
+        </div>
+        <div class="results-list">
+          <div 
+            v-for="(result, index) in searchResults" 
+            :key="index"
+            class="result-item"
+            :class="{ selected: selectedResults.includes(index) }"
+            @click="toggleResultSelection(index)"
+          >
+            <el-checkbox :model-value="selectedResults.includes(index)" />
+            <div class="result-content">
+              <div class="result-header">
+                <span class="hit-rate">✅ 命中率: {{ result.hitRate }}%</span>
+                <span class="hit-count">({{ params.periods }}期中{{ result.hitCount }}次)</span>
+              </div>
+              <div class="result-formula">{{ result.formula }}</div>
+              <div class="result-prediction">预测: {{ result.predictedResults.join(',') }}</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -156,83 +162,76 @@ const params = reactive({
   rightExtend: 0
 })
 
-const selectedTypes = ref(['tail']) // 默认选择尾数类
-const selectedElements = ref([])
-const randomCount = ref(3)
-const isGenerating = ref(false)
+// 智能搜索参数
+const intelligentParams = reactive({
+  targetHitRate: 80,
+  maxResults: 100,
+  searchMode: 'standard'
+})
+
+// 搜索状态
+const isSearching = ref(false)
+const searchProgress = reactive({
+  percentage: 0,
+  searched: 0,
+  total: 0,
+  found: 0,
+  bestHitRate: 0,
+  status: ''
+})
+
+// 搜索结果
+const searchResults = ref([])
+const selectedResults = ref([])
+
+const selectedTypes = ref(['tail'])
 
 // 计算属性
 const elements = computed(() => formulaStore.elements)
 
-// 方法
-const increaseCount = () => {
-  if (randomCount.value < 78) {
-    randomCount.value++
-  }
-}
-
-const decreaseCount = () => {
-  if (randomCount.value > 2) {
-    randomCount.value--
-  }
-}
-
-const toggleElement = (element) => {
-  const index = selectedElements.value.indexOf(element)
-  if (index > -1) {
-    selectedElements.value.splice(index, 1)
-  } else {
-    selectedElements.value.push(element)
-  }
-}
-
-const removeElement = (element) => {
-  const index = selectedElements.value.indexOf(element)
-  if (index > -1) {
-    selectedElements.value.splice(index, 1)
-  }
-}
-
-const clearSelected = () => {
-  selectedElements.value = []
-}
-
-const randomSelect = () => {
-  // 获取所有可用元素
-  const allElements = [
-    ...elements.value.period,
-    ...elements.value.total,
-    ...elements.value.ping.slice(0, 20), // 只取前20个平码元素，避免太多
-    ...elements.value.special
-  ]
-  
-  // 随机选择指定数量的元素
-  const shuffled = [...allElements].sort(() => 0.5 - Math.random())
-  selectedElements.value = shuffled.slice(0, Math.min(randomCount.value, allElements.length))
-  
-  ElMessage.success(`已随机选择 ${selectedElements.value.length} 个元素`)
-}
-
-const generateFormulas = async () => {
-  if (selectedElements.value.length < 2) {
-    ElMessage.warning('请至少选择2个元素')
-    return
-  }
-  
+// 智能搜索相关方法
+const startIntelligentSearch = async () => {
   if (selectedTypes.value.length === 0) {
     ElMessage.warning('请至少选择1种结果类型')
     return
   }
   
-  isGenerating.value = true
+  isSearching.value = true
+  searchResults.value = []
+  selectedResults.value = []
+  
+  Object.assign(searchProgress, {
+    percentage: 0,
+    searched: 0,
+    total: 0,
+    found: 0,
+    bestHitRate: 0,
+    status: ''
+  })
   
   try {
-    const formulas = []
+    const searchLimits = {
+      fast: 1000,
+      standard: 3000,
+      deep: 10000
+    }
     
-    // 类型映射
+    const maxSearch = searchLimits[intelligentParams.searchMode]
+    searchProgress.total = maxSearch
+    
+    const allElements = [
+      ...elements.value.period,
+      ...elements.value.total,
+      ...elements.value.ping.slice(0, 30),
+      ...elements.value.special
+    ]
+    
+    const results = []
+    let searchCount = 0
+    
     const typeMap = {
       tail: '尾数类',
-      head: '头数类', 
+      head: '头数类',
       sum: '合数类',
       wave: '波色类',
       element: '五行类',
@@ -240,97 +239,111 @@ const generateFormulas = async () => {
       code: '码类'
     }
     
-    // 后缀映射
-    const suffixMap = {
-      tail: '尾',
-      head: '头',
-      sum: '合',
-      wave: '波',
-      element: '行',
-      zodiac: '肖位',
-      code: '号'
-    }
-    
-    // 生成所有可能的组合：2元素、3元素、...、N元素
-    for (let size = 2; size <= selectedElements.value.length; size++) {
-      const combinations = getCombinations(selectedElements.value, size)
+    while (searchCount < maxSearch && results.length < intelligentParams.maxResults) {
+      const elementCount = Math.floor(Math.random() * 3) + 2
+      const shuffled = [...allElements].sort(() => 0.5 - Math.random())
+      const selectedEls = shuffled.slice(0, elementCount)
       
-      combinations.forEach(combo => {
-        selectedTypes.value.forEach(type => {
-          ['D', 'L'].forEach(rule => {
-            // 根据不同类型生成表达式
-            const suffix = suffixMap[type]
-            
-            // 为每个元素添加对应的后缀（如果元素本身不包含该后缀）
-            const expression = combo.map(el => {
-              // 检查元素是否已经包含后缀
-              if (el.endsWith(suffix)) {
-                return el // 已经有后缀，直接使用
-              } else if (el.endsWith('号') || el.endsWith('头') || el.endsWith('尾') || 
-                         el.endsWith('合') || el.endsWith('波') || el.endsWith('行') || 
-                         el.endsWith('肖位') || el.endsWith('段') || el.endsWith('合头') || 
-                         el.endsWith('合尾')) {
-                // 元素已经有其他后缀，需要替换为当前类型的后缀
-                // 移除现有后缀，添加新后缀
-                const base = el.replace(/(号|头|尾|合头|合尾|合|波|行|肖位|段)$/, '')
-                return base + suffix
-              } else {
-                // 基础元素（如"期数"、"总分"），直接添加后缀
-                return el + suffix
-              }
-            }).join('+')
-            
-            let formula = `[${rule}${typeMap[type]}]${expression}=${params.periods}`
-            
-            if (params.compensation !== 0) {
-              const sign = params.compensation > 0 ? '+' : ''
-              formula = `[${rule}${typeMap[type]}]${expression}${sign}${params.compensation}=${params.periods}`
-            }
-            
-            if (params.leftExtend > 0 || params.rightExtend > 0) {
-              formula += `左${params.leftExtend}右${params.rightExtend}`
-            }
-            
-            formulas.push(formula)
+      const randomType = selectedTypes.value[Math.floor(Math.random() * selectedTypes.value.length)]
+      const rule = Math.random() > 0.5 ? 'D' : 'L'
+      const expression = selectedEls.join('+')
+      
+      let formula = `[${rule}${typeMap[randomType]}]${expression}=${params.periods}`
+      
+      if (params.compensation !== 0) {
+        const sign = params.compensation > 0 ? '+' : ''
+        formula = `[${rule}${typeMap[randomType]}]${expression}${sign}${params.compensation}=${params.periods}`
+      }
+      
+      if (params.leftExtend > 0 || params.rightExtend > 0) {
+        formula += `左${params.leftExtend}右${params.rightExtend}`
+      }
+      
+      try {
+        const validation = formulaStore.validateFormula(formula, params.periods)
+        
+        if (validation.success && validation.hitRate >= intelligentParams.targetHitRate) {
+          results.push({
+            formula,
+            hitRate: validation.hitRate,
+            hitCount: validation.hitCount,
+            predictedResults: validation.predictedResults
           })
-        })
-      })
+          
+          if (validation.hitRate > searchProgress.bestHitRate) {
+            searchProgress.bestHitRate = validation.hitRate
+          }
+        }
+      } catch (error) {
+        // 忽略验证错误
+      }
       
-      // 限制生成数量，防止过多
-      if (formulas.length >= 800) {
+      searchCount++
+      
+      if (searchCount % 50 === 0 || results.length >= intelligentParams.maxResults) {
+        searchProgress.searched = searchCount
+        searchProgress.found = results.length
+        searchProgress.percentage = Math.min(Math.round((searchCount / maxSearch) * 100), 100)
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }
+      
+      if (!isSearching.value) {
         break
       }
     }
     
-    // 去重
-    const uniqueFormulas = [...new Set(formulas)]
+    results.sort((a, b) => b.hitRate - a.hitRate)
     
-    // 限制最终数量
-    const limitedFormulas = uniqueFormulas.slice(0, 800)
+    searchResults.value = results
+    searchProgress.status = 'success'
     
-    ElMessage.success(`生成了 ${limitedFormulas.length} 个公式组合`)
-    emit('add-formulas', limitedFormulas)
+    if (results.length > 0) {
+      ElMessage.success(`搜索完成！找到 ${results.length} 个高命中公式`)
+    } else {
+      ElMessage.warning(`搜索完成，但未找到命中率 ≥ ${intelligentParams.targetHitRate}% 的公式，请降低目标命中率`)
+    }
     
   } catch (error) {
-    ElMessage.error('生成公式失败：' + error.message)
+    ElMessage.error('搜索失败：' + error.message)
+    searchProgress.status = 'exception'
   } finally {
-    isGenerating.value = false
+    isSearching.value = false
   }
 }
 
-// 生成组合的辅助函数
-const getCombinations = (arr, size) => {
-  if (size === 1) return arr.map(el => [el])
-  if (size === arr.length) return [arr]
-  
-  const combinations = []
-  for (let i = 0; i <= arr.length - size; i++) {
-    const head = arr[i]
-    const tailCombos = getCombinations(arr.slice(i + 1), size - 1)
-    tailCombos.forEach(combo => combinations.push([head, ...combo]))
+const stopSearch = () => {
+  isSearching.value = false
+  ElMessage.info('已停止搜索')
+}
+
+const toggleResultSelection = (index) => {
+  const idx = selectedResults.value.indexOf(index)
+  if (idx > -1) {
+    selectedResults.value.splice(idx, 1)
+  } else {
+    selectedResults.value.push(index)
+  }
+}
+
+const selectAllResults = () => {
+  selectedResults.value = searchResults.value.map((_, index) => index)
+}
+
+const clearSelection = () => {
+  selectedResults.value = []
+}
+
+const addSelectedResults = () => {
+  if (selectedResults.value.length === 0) {
+    ElMessage.warning('请先选择要添加的公式')
+    return
   }
   
-  return combinations
+  const formulas = selectedResults.value.map(index => searchResults.value[index].formula)
+  emit('add-formulas', formulas)
+  
+  ElMessage.success(`已添加 ${formulas.length} 个公式到输入区`)
+  selectedResults.value = []
 }
 </script>
 
@@ -340,10 +353,7 @@ const getCombinations = (arr, size) => {
 }
 
 .params-section,
-.result-types-section,
-.random-section,
-.elements-section,
-.selected-section {
+.result-types-section {
   margin-bottom: 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid #eee;
@@ -373,51 +383,136 @@ const getCombinations = (arr, size) => {
   gap: 8px;
 }
 
-.random-controls {
+.intelligent-section {
+  margin-top: 24px;
+}
+
+.intelligent-params {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.intelligent-params .param-item {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  margin-bottom: 8px;
 }
 
-.count {
-  font-weight: bold;
-  min-width: 20px;
-  text-align: center;
-}
-
-.random-note {
-  font-size: 12px;
-  color: #666;
-}
-
-.element-group {
-  margin-bottom: 16px;
-}
-
-.element-group h5 {
-  margin-bottom: 8px;
+.intelligent-params .param-item label {
+  font-weight: 500;
   color: #333;
 }
 
-.element-tags,
-.selected-elements {
+.value-display {
+  font-weight: bold;
+  color: #409eff;
+  margin-left: 12px;
+}
+
+.search-actions {
   display: flex;
-  flex-wrap: wrap;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.search-progress {
+  margin: 20px 0;
+  padding: 16px;
+  background-color: #f5f7fa;
+  border-radius: 8px;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  font-size: 14px;
+  color: #666;
+}
+
+.search-results {
+  margin-top: 24px;
+  padding: 16px;
+  background-color: #f5f7fa;
+  border-radius: 8px;
+}
+
+.search-results h4 {
+  margin-bottom: 12px;
+  color: #333;
+}
+
+.results-actions {
+  display: flex;
   gap: 8px;
+  margin-bottom: 16px;
 }
 
-.element-tag,
-.selected-tag {
+.results-list {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.result-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+  background-color: white;
+  border: 2px solid #e4e7ed;
+  border-radius: 8px;
   cursor: pointer;
-  user-select: none;
+  transition: all 0.3s;
 }
 
-.element-tag:hover {
-  opacity: 0.8;
+.result-item:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
 }
 
-/* 移动端适配 */
+.result-item.selected {
+  border-color: #409eff;
+  background-color: #ecf5ff;
+}
+
+.result-content {
+  flex: 1;
+}
+
+.result-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.hit-rate {
+  font-weight: bold;
+  color: #67c23a;
+  font-size: 15px;
+}
+
+.hit-count {
+  color: #909399;
+  font-size: 13px;
+}
+
+.result-formula {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.result-prediction {
+  font-size: 13px;
+  color: #606266;
+}
+
 @media (max-width: 768px) {
   .params-row {
     flex-direction: column;
@@ -426,10 +521,6 @@ const getCombinations = (arr, size) => {
   
   .result-types {
     flex-direction: column;
-  }
-  
-  .random-controls {
-    flex-wrap: wrap;
   }
 }
 </style>

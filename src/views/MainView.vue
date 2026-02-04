@@ -48,7 +48,7 @@
           v-model="formulaInput"
           type="textarea"
           :rows="8"
-          placeholder="请输入公式，每行一个公式&#10;格式示例：&#10;[D尾数类]期数合+总分合=15&#10;[L头数类]期数尾+总分尾+5=20左1右2&#10;[D肖位类]平1号+平2号=15左1右1"
+          placeholder="请输入公式，每行一个公式（添加时会自动编号）&#10;格式示例：&#10;[D尾数类]期数合+总分合=15&#10;[L头数类]期数尾+总分尾+5=20左1右2&#10;[D肖位类]平1号+平2号=15左1右1&#10;&#10;从公式库添加时会自动加上编号如：&#10;[001][D尾数类]期数合+总分合=15"
           class="formula-input"
         />
         
@@ -174,25 +174,42 @@ const clearResults = () => {
 }
 
 const addFormulas = (formulas) => {
-  // 获取现有公式
+  // 获取现有公式（去除编号后比较）
   const existingFormulas = formulaInput.value 
-    ? formulaInput.value.split('\n').filter(line => line.trim())
+    ? formulaInput.value.split('\n').filter(line => line.trim()).map(line => {
+        // 移除编号部分进行比较
+        return line.replace(/^\[\d{3}\]/, '').trim()
+      })
     : []
   
   // 去重：只添加不存在的公式
-  const newFormulas = formulas.filter(formula => 
-    !existingFormulas.includes(formula.trim())
-  )
+  const newFormulas = formulas.filter(formula => {
+    const cleanFormula = formula.replace(/^\[\d{3}\]/, '').trim()
+    return !existingFormulas.includes(cleanFormula)
+  })
   
   if (newFormulas.length === 0) {
     ElMessage.warning('所有公式已存在，未添加新公式')
     return
   }
   
+  // 计算起始编号
+  const currentLines = formulaInput.value 
+    ? formulaInput.value.split('\n').filter(line => line.trim())
+    : []
+  let startNumber = currentLines.length + 1
+  
+  // 为新公式添加编号
+  const numberedFormulas = newFormulas.map((formula, index) => {
+    const cleanFormula = formula.replace(/^\[\d{3}\]/, '').trim()
+    const number = String(startNumber + index).padStart(3, '0')
+    return `[${number}]${cleanFormula}`
+  })
+  
   if (formulaInput.value) {
-    formulaInput.value += '\n' + newFormulas.join('\n')
+    formulaInput.value += '\n' + numberedFormulas.join('\n')
   } else {
-    formulaInput.value = newFormulas.join('\n')
+    formulaInput.value = numberedFormulas.join('\n')
   }
   
   const duplicateCount = formulas.length - newFormulas.length
@@ -279,14 +296,31 @@ const startValidation = async () => {
     let formulas = formulaInput.value
       .split('\n')
       .filter(line => line.trim())
-      .map((line, index) => ({ id: index + 1, content: line.trim() }))
+      .map((line, index) => {
+        // 检查是否已有编号
+        const numberMatch = line.match(/^\[(\d{3})\](.+)/)
+        if (numberMatch) {
+          return {
+            id: parseInt(numberMatch[1]),
+            content: numberMatch[2].trim(),
+            originalLine: line.trim()
+          }
+        } else {
+          // 没有编号，使用行号
+          return {
+            id: index + 1,
+            content: line.trim(),
+            originalLine: line.trim()
+          }
+        }
+      })
     
     if (formulas.length === 0) {
       ElMessage.warning('没有有效的公式')
       return
     }
     
-    // 公式去重
+    // 公式去重（基于公式内容，不包括编号）
     const uniqueFormulas = []
     const seen = new Set()
     
@@ -305,11 +339,6 @@ const startValidation = async () => {
       ElMessage.info(`已去重，从 ${formulas.length} 个公式中保留 ${uniqueFormulas.length} 个`)
     }
     
-    // 重新编号
-    uniqueFormulas.forEach((formula, index) => {
-      formula.id = index + 1
-    })
-    
     formulas = uniqueFormulas
     
     // 清空之前的结果
@@ -324,10 +353,11 @@ const startValidation = async () => {
       const validation = formulaStore.validateFormula(formula.content, currentParams.periods)
       
       if (validation.success) {
-        // 添加公式内容到验证结果中，用于后续统计
+        // 添加公式ID和内容到验证结果中，用于后续统计
         validation.formula = formula.content
+        validation.formulaId = formula.id
         
-        // 第一层：公式列表展示
+        // 第一层：公式列表展示（使用原始编号）
         const resultLine = `[${String(formula.id).padStart(3, '0')}]${validation.hitPattern}≡${currentParams.periods}中${String(validation.hitCount).padStart(2, '0')}次=${validation.predictedResults.join(',')}`
         validationResults.value.push(resultLine)
         
@@ -372,11 +402,42 @@ const generateDetailedStatistics = (validationDetails, formulaCount) => {
   const usedTypes = new Set()
   const typeStats = {}
   const typeFormulaCount = {} // 记录每种类型有多少个公式
-  const allCodeResults = new Set() // 收集所有公式预测的号码结果
+  const allCodeResults = new Set()
+  
+  // 波色映射
+  const waveMapping = {
+    '红波': [1,2,7,8,12,13,18,19,23,24,29,30,34,35,40,45,46],
+    '蓝波': [3,4,9,10,14,15,20,25,26,31,36,37,41,42,47,48],
+    '绿波': [5,6,11,16,17,21,22,27,28,32,33,38,39,43,44,49]
+  }
+  
+  // 五行映射
+  const elementMapping = {
+    '金': [3,4,11,12,25,26,33,34,41,42],
+    '木': [7,8,15,16,23,24,37,38,45,46],
+    '水': [13,14,21,22,29,30,43,44],
+    '火': [1,2,9,10,17,18,31,32,39,40,47,48],
+    '土': [5,6,19,20,27,28,35,36,49]
+  }
+  
+  // 生肖映射
+  const zodiacMapping = {
+    '鼠': [6,18,30,42],
+    '牛': [5,17,29,41],
+    '虎': [4,16,28,40],
+    '兔': [3,15,27,39],
+    '龙': [2,14,26,38],
+    '蛇': [1,13,25,37,49],
+    '马': [12,24,36,48],
+    '羊': [11,23,35,47],
+    '猴': [10,22,34,46],
+    '鸡': [9,21,33,45],
+    '狗': [8,20,32,44],
+    '猪': [7,19,31,43]
+  }
   
   // 分析验证结果，确定使用了哪些类型
-  validationDetails.forEach((validation, formulaIndex) => {
-    // 解析公式类型
+  validationDetails.forEach((validation) => {
     const formulaContent = validation.formula || ''
     const typeMatch = formulaContent.match(/\[([DL])([^\]]+)\]/)
     const formulaType = typeMatch ? typeMatch[2].trim() : ''
@@ -388,13 +449,17 @@ const generateDetailedStatistics = (validationDetails, formulaCount) => {
         if (!typeStats['尾数类']) {
           typeStats['尾数类'] = {}
           typeFormulaCount['尾数类'] = 0
-          // 初始化尾数类所有可能值
           for (let i = 0; i <= 9; i++) {
             typeStats['尾数类'][`${i}尾`] = 0
           }
         }
         if (typeStats['尾数类'][result] !== undefined) {
           typeStats['尾数类'][result]++
+        }
+        // 转换为号码
+        const tailNum = parseInt(result.replace('尾', ''))
+        for (let i = tailNum; i <= 49; i += 10) {
+          if (i >= 1) allCodeResults.add(String(i).padStart(2, '0'))
         }
       }
       
@@ -403,13 +468,17 @@ const generateDetailedStatistics = (validationDetails, formulaCount) => {
         if (!typeStats['头数类']) {
           typeStats['头数类'] = {}
           typeFormulaCount['头数类'] = 0
-          // 初始化头数类所有可能值
           for (let i = 0; i <= 4; i++) {
             typeStats['头数类'][`${i}头`] = 0
           }
         }
         if (typeStats['头数类'][result] !== undefined) {
           typeStats['头数类'][result]++
+        }
+        // 转换为号码
+        const headNum = parseInt(result.replace('头', ''))
+        for (let i = headNum * 10; i < (headNum + 1) * 10 && i <= 49; i++) {
+          if (i >= 1) allCodeResults.add(String(i).padStart(2, '0'))
         }
       }
       
@@ -424,6 +493,12 @@ const generateDetailedStatistics = (validationDetails, formulaCount) => {
         if (typeStats['波色类'][result] !== undefined) {
           typeStats['波色类'][result]++
         }
+        // 转换为号码
+        if (waveMapping[result]) {
+          waveMapping[result].forEach(num => {
+            allCodeResults.add(String(num).padStart(2, '0'))
+          })
+        }
       }
       
       if (['金','木','水','火','土'].includes(result)) {
@@ -436,6 +511,12 @@ const generateDetailedStatistics = (validationDetails, formulaCount) => {
         }
         if (typeStats['五行类'][result] !== undefined) {
           typeStats['五行类'][result]++
+        }
+        // 转换为号码
+        if (elementMapping[result]) {
+          elementMapping[result].forEach(num => {
+            allCodeResults.add(String(num).padStart(2, '0'))
+          })
         }
       }
       
@@ -452,6 +533,12 @@ const generateDetailedStatistics = (validationDetails, formulaCount) => {
         if (typeStats['肖位类'][result] !== undefined) {
           typeStats['肖位类'][result]++
         }
+        // 转换为号码
+        if (zodiacMapping[result]) {
+          zodiacMapping[result].forEach(num => {
+            allCodeResults.add(String(num).padStart(2, '0'))
+          })
+        }
       }
       
       if (result.includes('合')) {
@@ -466,6 +553,14 @@ const generateDetailedStatistics = (validationDetails, formulaCount) => {
         if (typeStats['合数类'][result] !== undefined) {
           typeStats['合数类'][result]++
         }
+        // 合数转换为号码（数字根）
+        const sumNum = parseInt(result.replace('合', ''))
+        for (let i = 1; i <= 49; i++) {
+          const digitSum = String(i).split('').reduce((sum, d) => sum + parseInt(d), 0)
+          if (digitSum === sumNum) {
+            allCodeResults.add(String(i).padStart(2, '0'))
+          }
+        }
       }
       
       // 码类型公式的结果统计
@@ -474,7 +569,6 @@ const generateDetailedStatistics = (validationDetails, formulaCount) => {
         if (!typeStats['码类']) {
           typeStats['码类'] = {}
           typeFormulaCount['码类'] = 0
-          // 初始化码类所有可能值
           for (let i = 1; i <= 49; i++) {
             typeStats['码类'][String(i).padStart(2, '0')] = 0
           }
@@ -482,7 +576,6 @@ const generateDetailedStatistics = (validationDetails, formulaCount) => {
         if (typeStats['码类'][result] !== undefined) {
           typeStats['码类'][result]++
         }
-        // 收集号码结果用于第四层汇总
         allCodeResults.add(result)
       }
     })
@@ -497,10 +590,16 @@ const generateDetailedStatistics = (validationDetails, formulaCount) => {
     if (formulaType.includes('码类')) typeFormulaCount['码类'] = (typeFormulaCount['码类'] || 0) + 1
   })
   
-  // 显示第三层统计 - 只显示使用了的类型，但显示所有可能值包括0次
+  // 显示统计 - 只显示使用了的类型，但显示所有可能值包括0次
+  validationResults.value.push('')
+  validationResults.value.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  validationResults.value.push('📈 汇总统计')
+  validationResults.value.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  validationResults.value.push('')
+  
   usedTypes.forEach(typeName => {
     if (typeStats[typeName]) {
-      validationResults.value.push(`【${typeName}结果】`)
+      validationResults.value.push(`【${typeName}】`)
       validationResults.value.push(`${currentDate}期:`)
       
       // 按命中次数分组
@@ -510,57 +609,96 @@ const generateDetailedStatistics = (validationDetails, formulaCount) => {
         hitGroups[count].push(item)
       })
       
-      let totalLines = 0
-      let totalCodes = 0
-      
       // 按次数排序显示（包括0次）
       Object.keys(hitGroups).sort((a, b) => parseInt(a) - parseInt(b)).forEach(hits => {
         const items = hitGroups[hits]
-        validationResults.value.push(`  〖${hits}次〗：${items.join(',')}（共${items.length}码)`)
-        totalLines++
-        totalCodes += items.length
+        validationResults.value.push(`  〖${hits}次〗：${items.join(',')}（共${items.length}码）`)
       })
       
+      // 显示该类型的公式数量
       const formulaCountForType = typeFormulaCount[typeName] || 0
-      // 计算总的运算结果次数（每个结果项的出现次数之和）
       const totalResultCount = Object.values(typeStats[typeName]).reduce((sum, count) => sum + count, 0)
       validationResults.value.push(`  〖本次运算共${formulaCountForType}行, 总计${totalResultCount}次〗`)
       validationResults.value.push('')
     }
   })
   
-  // 显示第四层：全部公式号码汇总统计
-  // 这里我们需要模拟一些号码结果，因为大多数公式类型不直接产生号码
-  console.log('Debug: allCodeResults size:', allCodeResults.size)
-  console.log('Debug: validationDetails length:', validationDetails.length)
-  
-  // 总是显示第四层，即使没有直接的号码结果
+  // 显示全部公式号码汇总
   validationResults.value.push('【全部公式号码汇总】')
   validationResults.value.push(`${currentDate}期:`)
   
-  // 统计所有号码的出现次数
+  // 统计所有号码被多少个公式命中
   const allCodeStats = {}
   for (let i = 1; i <= 49; i++) {
     allCodeStats[String(i).padStart(2, '0')] = 0
   }
   
-  // 如果有直接的号码结果，统计它们
-  if (allCodeResults.size > 0) {
-    validationDetails.forEach(validation => {
-      validation.predictedResults.forEach(result => {
-        if (/^\d{2}$/.test(result) && allCodeStats[result] !== undefined) {
-          allCodeStats[result]++
+  // 遍历每个公式的结果，转换为号码并统计
+  validationDetails.forEach((validation) => {
+    const formulaNumbers = new Set() // 该公式预测的所有号码
+    
+    validation.predictedResults.forEach(result => {
+      // 尾数类转换
+      if (result.includes('尾')) {
+        const tailNum = parseInt(result.replace('尾', ''))
+        for (let i = tailNum; i <= 49; i += 10) {
+          if (i >= 1) formulaNumbers.add(String(i).padStart(2, '0'))
         }
-      })
+      }
+      // 头数类转换
+      else if (result.includes('头')) {
+        const headNum = parseInt(result.replace('头', ''))
+        for (let i = headNum * 10; i < (headNum + 1) * 10 && i <= 49; i++) {
+          if (i >= 1) formulaNumbers.add(String(i).padStart(2, '0'))
+        }
+      }
+      // 波色类转换
+      else if (result.includes('波')) {
+        if (waveMapping[result]) {
+          waveMapping[result].forEach(num => {
+            formulaNumbers.add(String(num).padStart(2, '0'))
+          })
+        }
+      }
+      // 五行类转换
+      else if (['金','木','水','火','土'].includes(result)) {
+        if (elementMapping[result]) {
+          elementMapping[result].forEach(num => {
+            formulaNumbers.add(String(num).padStart(2, '0'))
+          })
+        }
+      }
+      // 肖位类转换
+      else if (['鼠','牛','虎','兔','龙','蛇','马','羊','猴','鸡','狗','猪'].includes(result)) {
+        if (zodiacMapping[result]) {
+          zodiacMapping[result].forEach(num => {
+            formulaNumbers.add(String(num).padStart(2, '0'))
+          })
+        }
+      }
+      // 合数类转换
+      else if (result.includes('合')) {
+        const sumNum = parseInt(result.replace('合', ''))
+        for (let i = 1; i <= 49; i++) {
+          const digitSum = String(i).split('').reduce((sum, d) => sum + parseInt(d), 0)
+          if (digitSum === sumNum) {
+            formulaNumbers.add(String(i).padStart(2, '0'))
+          }
+        }
+      }
+      // 码类直接使用
+      else if (/^\d{2}$/.test(result)) {
+        formulaNumbers.add(result)
+      }
     })
-  } else {
-    // 如果没有直接的号码结果，我们需要模拟一些结果用于演示
-    // 这里可以根据其他类型的结果推导出可能的号码
-    const sampleCodes = ['01', '02', '03', '07', '08', '09', '17', '19', '20', '21', '23', '24', '26', '27', '29', '30']
-    sampleCodes.forEach(code => {
-      allCodeStats[code] = Math.floor(Math.random() * 3) + 1 // 随机1-3次
+    
+    // 该公式预测的所有号码，每个号码的命中次数+1
+    formulaNumbers.forEach(code => {
+      if (allCodeStats[code] !== undefined) {
+        allCodeStats[code]++
+      }
     })
-  }
+  })
   
   // 按命中次数分组
   const codeHitGroups = {}
@@ -569,16 +707,11 @@ const generateDetailedStatistics = (validationDetails, formulaCount) => {
     codeHitGroups[count].push(code)
   })
   
-  let totalLines = 0
-  let totalCodes = 0
-  
   // 按次数排序显示
   Object.keys(codeHitGroups).sort((a, b) => parseInt(a) - parseInt(b)).forEach(hits => {
     const codes = codeHitGroups[hits].sort()
     if (codes.length > 0) {
-      validationResults.value.push(`  〖${hits}次〗：${codes.join(',')}（共${codes.length}码)`)
-      totalLines++
-      totalCodes += codes.length
+      validationResults.value.push(`  〖${hits}次〗：${codes.join(',')}（共${codes.length}码）`)
     }
   })
   
